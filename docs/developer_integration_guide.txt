@@ -1,0 +1,353 @@
+Below is a **clear, friendly, beginner‑oriented Developer Integration Guide** for your official document / policy / regulation / law versioning library. It assumes **no prior knowledge** of versioning systems, legal document structures, or even why such a system exists. It is written to help developers, analysts, and technical staff understand *what the library is, why it matters, and how to use it safely and correctly.*
+
+---
+
+# 📘 Developer Integration Guide  
+### *For the Official Document / Policy / Regulation / Law Versioning & Indexing Library*  
+**Audience:** Developers, analysts, and integrators with **zero prior experience** in document versioning, legal structures, or compliance systems.
+
+---
+
+# 1. What This Library Is (In Plain English)
+
+This library is a **single source of truth** for all official documents your organization publishes—things like:
+
+- Policies  
+- Regulations  
+- Standards  
+- Procedures  
+- Laws  
+- Guidance documents  
+
+It stores every version of every document, tracks changes over time, and makes it easy for software systems to:
+
+- Retrieve the latest official version  
+- Retrieve older versions  
+- Understand what changed and when  
+- Link to specific sections inside documents  
+- Apply amendments correctly  
+- Ensure users always see the correct, authoritative text  
+
+Think of it like **GitHub for official documents**, but with rules that match how governments and regulated organizations work.
+
+---
+
+# 2. Why This Library Exists (The Problem It Solves)
+
+Most organizations struggle with:
+
+- People using outdated policies  
+- Confusion about which version is “official”  
+- Lost change history  
+- No way to reference specific sections  
+- No audit trail for compliance  
+- No machine-readable structure for automation  
+
+This library fixes all of that by providing:
+
+- **Version control**  
+- **Stable identifiers**  
+- **Structured sections**  
+- **Amendment tracking**  
+- **Digital signatures**  
+- **Immutable archives**  
+
+If you’ve ever asked “Which version is correct?”—this library prevents that question from ever coming up again.
+
+---
+
+# 3. Key Concepts (Explained Simply)
+
+## 3.1 Document  
+A document is the *thing itself*—a policy, law, regulation, etc.
+
+Example:  
+**“Vehicle Safety Compliance Policy”**
+
+## 3.2 Document Version  
+Every time a document changes, a new **version** is created.
+
+Versions follow a simple pattern:
+
+```
+MAJOR.MINOR.PATCH
+```
+
+Examples:
+- `1.0.0` — first official version  
+- `1.1.0` — added new sections  
+- `1.1.1` — fixed typos  
+
+## 3.3 CDI (Canonical Document Identifier)  
+A permanent, unique ID for each document.
+
+Example:
+```
+US-WYDOT-POL-0042-v3.1
+```
+
+You can think of it like a license plate for documents.
+
+## 3.4 Sections  
+Documents are broken into structured parts:
+
+```
+Part → Chapter → Section → Subsection → Clause → Item
+```
+
+This allows precise references like:
+
+```
+§3.2.1(a)(iv)
+```
+
+## 3.5 Amendments  
+An amendment is a change to a specific part of a document.
+
+Example:
+```
+Modify §3.2.1(a) effective July 1, 2025
+```
+
+---
+
+# 4. How Developers Use the Library
+
+## 4.1 Retrieve the latest version of a document
+
+```
+GET /v1/documents/{cdi}
+```
+
+Returns the full document, including:
+
+- Metadata  
+- Version info  
+- Sections  
+- Amendments  
+- Digital signature  
+
+## 4.2 Retrieve all versions of a document
+
+```
+GET /v1/documents/{cdi}/versions
+```
+
+Useful for:
+
+- Audit  
+- Compliance  
+- Historical research  
+- Change comparison  
+
+## 4.3 Retrieve a specific version
+
+```
+GET /v1/documents/{cdi}/versions/{version}
+```
+
+## 4.4 Search for documents
+
+```
+GET /v1/search?q=vehicle+safety
+```
+
+Supports filters like:
+
+- jurisdiction  
+- type  
+- tags  
+- status  
+
+## 4.5 Resolve a citation (find a specific section)
+
+```
+GET /v1/citations/resolve?cdi=...&index_code=§3.2.1(a)
+```
+
+This is extremely useful for:
+
+- Legal references  
+- Automated compliance checks  
+- Linking inside apps  
+
+---
+
+# 5. How to Integrate This Library Into Your Application
+
+## 5.1 Common integration patterns
+
+### Pattern A: “Always show the latest official version”
+Your app fetches:
+
+```
+GET /v1/documents/{cdi}
+```
+
+Use this when:
+
+- Displaying policies to employees  
+- Showing regulations to the public  
+- Embedding documents in portals  
+
+### Pattern B: “Show the version that was in effect at a specific time”
+Use the citation resolver:
+
+```
+GET /v1/citations/resolve?as_of_date=2024-01-01
+```
+
+Useful for:
+
+- Audits  
+- Investigations  
+- Historical compliance checks  
+
+### Pattern C: “Track changes over time”
+Fetch all versions:
+
+```
+GET /v1/documents/{cdi}/versions
+```
+
+Then compare:
+
+- Text  
+- Sections  
+- Amendments  
+
+### Pattern D: “Link to a specific section”
+Use the section index code:
+
+```
+§3.2.1(a)(iv)
+```
+
+Your app can store these codes to create stable, permanent links.
+
+---
+
+# 6. Best Practices for Developers
+
+## ✔ Always store the CDI, not the title  
+Titles change. CDIs don’t.
+
+## ✔ Never hardcode version numbers  
+Always fetch the latest version unless you intentionally need a historical one.
+
+## ✔ Use section index codes for deep links  
+They are stable across versions.
+
+## ✔ Validate signatures if your app requires legal integrity  
+The library provides digital signatures for verification.
+
+## ✔ Cache responses when possible  
+Documents rarely change, so caching improves performance.
+
+## ✔ Use “as_of_date” when correctness over time matters  
+Especially in compliance or legal contexts.
+
+---
+
+# 7. Common Mistakes to Avoid
+
+❌ **Don’t store document text in your own database**  
+→ Always fetch from the library to avoid stale content.
+
+❌ **Don’t assume version numbers increase by 1**  
+→ Semantic versioning is based on change type, not sequence.
+
+❌ **Don’t reference documents by title**  
+→ Titles are not unique or permanent.
+
+❌ **Don’t assume sections are numbered sequentially**  
+→ Legal numbering often skips or renumbers sections.
+
+---
+
+# 8. Example: A Simple Integration (JavaScript)
+
+```javascript
+async function getLatestDocument(cdi) {
+  const response = await fetch(`/v1/documents/${cdi}`);
+  if (!response.ok) throw new Error("Document not found");
+  return await response.json();
+}
+
+async function getSection(cdi, indexCode) {
+  const response = await fetch(
+    `/v1/citations/resolve?cdi=${cdi}&index_code=${encodeURIComponent(indexCode)}`
+  );
+  return await response.json();
+}
+
+// Example usage:
+const doc = await getLatestDocument("US-WYDOT-POL-0042");
+console.log(doc.title);
+
+const section = await getSection("US-WYDOT-POL-0042", "§3.2.1(a)");
+console.log(section.text);
+```
+
+---
+
+# 9. Example: A Simple Integration (Python)
+
+```python
+import requests
+
+def get_latest_document(cdi):
+    r = requests.get(f"https://api.example.com/v1/documents/{cdi}")
+    r.raise_for_status()
+    return r.json()
+
+def get_section(cdi, index_code):
+    r = requests.get(
+        "https://api.example.com/v1/citations/resolve",
+        params={"cdi": cdi, "index_code": index_code},
+    )
+    r.raise_for_status()
+    return r.json()
+
+doc = get_latest_document("US-WYDOT-POL-0042")
+print(doc["title"])
+
+section = get_section("US-WYDOT-POL-0042", "§3.2.1(a)")
+print(section["text"])
+```
+
+---
+
+# 10. When to Ask for Help
+
+You should reach out to your compliance, legal, or records management team when:
+
+- You’re unsure which document to reference  
+- You need to understand the meaning of a section  
+- You’re integrating with a system that requires legal accuracy  
+- You’re building a workflow that publishes or amends documents  
+
+They can help ensure your integration is correct and compliant.
+
+---
+
+# 11. Summary (TL;DR)
+
+- This library is the **official source** for all authoritative documents.  
+- It provides **versioning, indexing, amendments, and signatures**.  
+- Developers interact with it through a simple **REST API**.  
+- Always use **CDIs** and **section index codes**.  
+- Fetch the **latest version** unless you need historical accuracy.  
+- Use **as_of_date** for time-sensitive queries.  
+
+---
+
+""""If you want, I can also create:
+
+📘 A **Quick Start Guide** (1-page)  
+📘 A **Glossary for Non-Technical Users**  
+📘 A **Training Deck** for onboarding developers  
+📘 A **Sample UI mockup** for browsing documents  
+📘 A **SDK** in Python, JavaScript, or C#
+
+Just tell me what you’d like next!""""
