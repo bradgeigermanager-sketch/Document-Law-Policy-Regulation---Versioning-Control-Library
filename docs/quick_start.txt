@@ -1,0 +1,652 @@
+### Quick Start Guide – Versioning & Indexing Library
+
+---
+
+#### 1. What this system does (one paragraph)
+
+This library is the **official home** for all policies, regulations, standards, and similar documents. It stores every version, tracks changes, and lets apps reliably fetch the **right text**—the latest version or a specific historical one—down to individual sections like “§3.2.1(a)”. If your app needs to show “the official policy” or link to “this exact clause,” this is the system you talk to.
+
+---
+
+#### 2. Core ideas in 60 seconds
+
+- **Document:** A policy, regulation, law, etc.  
+- **Version:** A specific state of that document (e.g. `1.0.0`, `1.1.0`).  
+- **CDI:** Canonical Document Identifier (permanent ID for a document family).  
+- **Sections:** Structured parts of a document (e.g. `§3.2.1(a)`).  
+- **Amendment:** A change to one or more sections.  
+
+---
+
+#### 3. Typical things you’ll do as a developer
+
+- **Show the latest official version** of a document in your app.  
+- **Link to a specific section** (e.g. a clause in a policy).  
+- **Check what the policy said on a past date** (for audits).  
+- **Search** for documents by keywords, type, or jurisdiction.  
+
+---
+
+#### 4. The three most important endpoints
+
+1. **Get the latest version of a document**
+
+   ```http
+   GET /v1/documents/{cdi}
+   ```
+
+   - Input: `cdi` (e.g. `US-WYDOT-POL-0042`)  
+   - Output: full document version (metadata, sections, etc.)
+
+2. **Get all versions of a document**
+
+   ```http
+   GET /v1/documents/{cdi}/versions
+   ```
+
+   - Use this to see history and pick a specific version.
+
+3. **Resolve a specific section (citation)**
+
+   ```http
+   GET /v1/citations/resolve?cdi={cdi}&index_code={section_code}&as_of_date={date?}
+   ```
+
+   - Example: `index_code=§3.2.1(a)`  
+   - Optional `as_of_date` to see what was in force on a given day.
+
+---
+
+#### 5. Minimal integration example (JavaScript)
+
+```javascript
+async function showPolicy(cdi) {
+  const res = await fetch(`/v1/documents/${cdi}`);
+  if (!res.ok) throw new Error("Document not found");
+  const doc = await res.json();
+  document.querySelector("#title").textContent = doc.title;
+  document.querySelector("#body").textContent = doc.sections[0].text;
+}
+```
+
+---
+
+#### 6. Minimal integration example (Python)
+
+```python
+import requests
+
+def get_latest_document(cdi):
+    r = requests.get(f"https://api.example.com/v1/documents/{cdi}")
+    r.raise_for_status()
+    return r.json()
+
+doc = get_latest_document("US-WYDOT-POL-0042")
+print(doc["title"])
+```
+
+---
+
+#### 7. Golden rules
+
+- **Always store the CDI**, not just the title.  
+- **Don’t copy the text into your own DB** if you can avoid it—fetch it.  
+- **Use section index codes** (`§3.2.1(a)`) for deep links.  
+- **Use `as_of_date`** when you care about what was true at a specific time.
+
+---
+
+---
+
+### Glossary for Non-Technical & Technical Users
+
+---
+
+#### A. Core terms
+
+- **Document**  
+  An official text such as a policy, regulation, law, standard, or directive.
+
+- **Document Version**  
+  A specific state of a document at a point in time (e.g. `1.0.0`).
+
+- **Version Number (Semantic Versioning)**  
+  A three-part number:  
+  - **MAJOR**: big changes (new framework, repeal-and-replace).  
+  - **MINOR**: meaningful changes (new sections, updated rules).  
+  - **PATCH**: small fixes (typos, formatting).
+
+- **CDI (Canonical Document Identifier)**  
+  A permanent, unique ID for a document family.  
+  Example: `US-WYDOT-POL-0042-v3.1`.
+
+- **Series ID**  
+  A stable ID for the document family (e.g. `0042`), used across versions.
+
+---
+
+#### B. Structure & navigation
+
+- **Section**  
+  A part of a document, like a chapter or clause.
+
+- **Section Index Code**  
+  A standardized way to refer to a section.  
+  Example: `§3.2.1(a)(iv)`.
+
+- **Hierarchy**  
+  The levels inside a document, such as:  
+  `Part → Chapter → Section → Subsection → Clause → Item`.
+
+---
+
+#### C. Change tracking
+
+- **Amendment**  
+  A change to one or more sections of a document (add, modify, repeal, etc.).
+
+- **Amendment Operation**  
+  The type of change: `ADD`, `MODIFY`, `REPEAL`, `RENUMBER`, `REPLACE`.
+
+- **Supersedes**  
+  Indicates that one version replaces another.
+
+- **Effective Date**  
+  The date when a document or amendment starts to have effect.
+
+- **Expiration Date**  
+  The date when a document stops being in force.
+
+---
+
+#### D. Status & lifecycle
+
+- **DRAFT**  
+  Not yet approved or official.
+
+- **ACTIVE**  
+  Currently in force and authoritative.
+
+- **RETIRED**  
+  No longer in use but kept for history.
+
+- **REPEALED**  
+  Officially revoked.
+
+- **SUPERSEDED**  
+  Replaced by a newer version.
+
+---
+
+#### E. Integrity & authenticity
+
+- **Checksum**  
+  A digital fingerprint of a document version used to detect tampering.
+
+- **Digital Signature**  
+  A cryptographic proof that a document version was approved by the right authority and hasn’t been altered.
+
+- **Audit Log**  
+  A record of who did what, when (e.g. created, approved, published).
+
+---
+
+#### F. Technical terms
+
+- **API (Application Programming Interface)**  
+  A set of URLs and rules that software uses to talk to the library.
+
+- **REST**  
+  A common style of API using HTTP verbs like GET, POST, etc.
+
+- **JSON**  
+  A text format for structured data, easy for both humans and machines.
+
+- **URI**  
+  A unique address for a resource (e.g. where a document file is stored).
+
+---
+
+---
+
+### Training Deck – Outline (Slide-by-Slide)
+
+You can drop this into PowerPoint, Keynote, or Google Slides.
+
+---
+
+#### Slide 1 – Title
+
+**Title:**  
+“Official Document Versioning & Indexing Library – Developer Onboarding”
+
+**Subtitle:**  
+“How to reliably work with policies, regulations, and laws in your apps”
+
+---
+
+#### Slide 2 – Why this matters
+
+- People often use **outdated policies** by mistake.  
+- No clear answer to “Which version is official?”  
+- Hard to see **what changed** and **when**.  
+- This library solves those problems for all systems.
+
+---
+
+#### Slide 3 – What the library is
+
+- A **central system** for:  
+  - Policies  
+  - Regulations  
+  - Standards  
+  - Laws  
+- Stores **every version**.  
+- Provides **APIs** to fetch and search documents.
+
+---
+
+#### Slide 4 – Key concepts
+
+- **Document** – the policy or law itself.  
+- **Version** – a specific state (e.g. `1.0.0`).  
+- **CDI** – permanent ID for a document family.  
+- **Section** – a part of the document (e.g. `§3.2.1(a)`).  
+- **Amendment** – a change to one or more sections.
+
+---
+
+#### Slide 5 – Version numbers (simple explanation)
+
+- Format: `MAJOR.MINOR.PATCH`  
+- **MAJOR** – big changes, new framework.  
+- **MINOR** – meaningful updates, new sections.  
+- **PATCH** – small fixes, no change in meaning.
+
+---
+
+#### Slide 6 – How documents are structured
+
+- Hierarchy:  
+  - Part  
+  - Chapter  
+  - Section  
+  - Subsection  
+  - Clause  
+  - Item  
+- Example index code: `§3.2.1(a)(iv)`.
+
+---
+
+#### Slide 7 – Typical developer tasks
+
+- Show the **latest official version** of a policy.  
+- Link to a **specific section**.  
+- See **what changed** between versions.  
+- Check **what was in force** on a past date.
+
+---
+
+#### Slide 8 – Core API endpoints
+
+- `GET /v1/documents/{cdi}` – latest version.  
+- `GET /v1/documents/{cdi}/versions` – all versions.  
+- `GET /v1/citations/resolve` – specific section.  
+- `GET /v1/search` – find documents.
+
+---
+
+#### Slide 9 – Example: show latest policy (code snippet)
+
+- Show a short JS or Python snippet calling `GET /v1/documents/{cdi}`.  
+- Highlight: **CDI**, **title**, **sections**.
+
+---
+
+#### Slide 10 – Example: resolve a section
+
+- Show `GET /v1/citations/resolve?cdi=...&index_code=§3.2.1(a)`  
+- Explain:  
+  - Input: CDI + section code.  
+  - Output: exact text + metadata.
+
+---
+
+#### Slide 11 – Best practices
+
+- Always store **CDIs**, not just titles.  
+- Don’t copy text into your own DB if you can avoid it.  
+- Use **section index codes** for deep links.  
+- Use **as_of_date** when time matters.
+
+---
+
+#### Slide 12 – Common pitfalls
+
+- Assuming the latest PDF on someone’s desktop is “official”.  
+- Hardcoding version numbers.  
+- Referencing documents by title only.  
+- Ignoring status (`ACTIVE`, `RETIRED`, etc.).
+
+---
+
+#### Slide 13 – Who to talk to
+
+- For **legal meaning**: Legal/Compliance.  
+- For **records and retention**: Records/Knowledge Management.  
+- For **technical integration**: Platform/Architecture team.
+
+---
+
+#### Slide 14 – Summary
+
+- One system for all official documents.  
+- Clear versioning and structure.  
+- Simple APIs for developers.  
+- Reduces risk and confusion across the organization.
+
+---
+
+---
+
+### Sample UI Mockup – Textual Wireframe
+
+Imagine a web app called **“Official Document Registry”**.
+
+---
+
+#### A. Home page
+
+**Header:**  
+- Logo  
+- “Official Document Registry”  
+- Search bar  
+- User menu (Profile, Help, Logout)
+
+**Main content:**
+
+- **Search box**  
+  - Placeholder: “Search by title, CDI, or keyword…”  
+  - Filters:  
+    - Type (Policy, Regulation, Law, Standard…)  
+    - Jurisdiction (dropdown)  
+    - Status (Active, Draft, Retired)  
+
+- **Recent updates list**  
+  - “Recently Published”  
+  - Each row:  
+    - Title  
+    - CDI  
+    - Version  
+    - Status  
+    - Effective date  
+
+---
+
+#### B. Document detail page
+
+**Top section:**
+
+- Title: “Vehicle Safety Compliance Policy”  
+- Subtitle: `CDI: US-WYDOT-POL-0042`  
+- Badge: `ACTIVE`  
+- Version selector: dropdown (e.g. `3.1.0`, `3.0.0`, `2.2.0`)  
+- Metadata panel:  
+  - Type: Policy  
+  - Jurisdiction: US-WY  
+  - Issuing authority: WYDOT  
+  - Effective date: 2025-01-01  
+  - Supersedes: link to previous version  
+
+**Main content area:**
+
+- Left column: **Section tree**  
+  - Part I  
+    - Chapter 1  
+      - §1.1 Purpose  
+      - §1.2 Scope  
+    - Chapter 2  
+      - §2.1 Definitions  
+  - Part II  
+    - Chapter 3  
+      - §3.1 General Requirements  
+      - §3.2 Vehicle Inspections  
+        - §3.2.1(a)  
+        - §3.2.1(b)  
+
+- Right column: **Section viewer**  
+  - Shows selected section’s heading and text.  
+  - Breadcrumb: `Part II > Chapter 3 > §3.2.1(a)`  
+  - Buttons:  
+    - “Copy citation” (copies CDI + section code)  
+    - “View change history” (opens side panel)  
+
+---
+
+#### C. Change history side panel
+
+- Title: “Change history for §3.2.1(a)”  
+- Timeline view:  
+  - 2025-07-01 – Amended by `AMEND-US-WYDOT-POL-0042-2025-01`  
+  - 2024-01-01 – Introduced in version `2.0.0`  
+
+- Each entry:  
+  - Version number  
+  - Summary of change  
+  - Link: “View diff”
+
+---
+
+#### D. Diff view
+
+- Two-column layout:  
+  - Left: previous version text.  
+  - Right: current version text.  
+- Highlight:  
+  - Additions in green.  
+  - Deletions in red.  
+
+---
+
+#### E. Admin view (for authorized users)
+
+- Tabs:  
+  - “Drafts”  
+  - “Under Review”  
+  - “Published”  
+
+- Each draft row:  
+  - Title  
+  - Series ID  
+  - Proposed version type (Major/Minor/Patch)  
+  - Owner  
+  - Actions: “Open”, “Submit for review”, “Delete”
+
+---
+
+---
+
+### SDK – Example Client Libraries
+
+I’ll sketch **two lightweight SDKs**: one in **Python** and one in **JavaScript**. Both assume a base URL like `https://api.example.com`.
+
+---
+
+#### Python SDK (simple, extendable)
+
+```python
+# sdk/document_client.py
+import requests
+from typing import Optional, Dict, Any, List
+
+class DocumentClient:
+    def __init__(self, base_url: str, api_key: Optional[str] = None):
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+
+    def _headers(self) -> Dict[str, str]:
+        headers = {"Accept": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    def get_latest_document(self, cdi: str) -> Dict[str, Any]:
+        url = f"{self.base_url}/v1/documents/{cdi}"
+        r = requests.get(url, headers=self._headers())
+        r.raise_for_status()
+        return r.json()
+
+    def get_document_versions(self, cdi: str) -> List[Dict[str, Any]]:
+        url = f"{self.base_url}/v1/documents/{cdi}/versions"
+        r = requests.get(url, headers=self._headers())
+        r.raise_for_status()
+        return r.json()
+
+    def get_specific_version(self, cdi: str, version: str) -> Dict[str, Any]:
+        url = f"{self.base_url}/v1/documents/{cdi}/versions/{version}"
+        r = requests.get(url, headers=self._headers())
+        r.raise_for_status()
+        return r.json()
+
+    def resolve_citation(
+        self,
+        cdi: str,
+        index_code: str,
+        as_of_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        params = {"cdi": cdi, "index_code": index_code}
+        if as_of_date:
+            params["as_of_date"] = as_of_date
+        url = f"{self.base_url}/v1/citations/resolve"
+        r = requests.get(url, headers=self._headers(), params=params)
+        r.raise_for_status()
+        return r.json()
+
+    def search_documents(
+        self,
+        query: str,
+        type: Optional[str] = None,
+        jurisdiction: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        params = {"q": query}
+        if type:
+            params["type"] = type
+        if jurisdiction:
+            params["jurisdiction"] = jurisdiction
+        if status:
+            params["status"] = status
+        url = f"{self.base_url}/v1/search"
+        r = requests.get(url, headers=self._headers(), params=params)
+        r.raise_for_status()
+        return r.json()
+```
+
+**Usage:**
+
+```python
+from sdk.document_client import DocumentClient
+
+client = DocumentClient("https://api.example.com", api_key="YOUR_TOKEN")
+
+doc = client.get_latest_document("US-WYDOT-POL-0042")
+print(doc["title"])
+
+section = client.resolve_citation("US-WYDOT-POL-0042", "§3.2.1(a)")
+print(section["text"])
+```
+
+---
+
+#### JavaScript SDK (browser or Node)
+
+```javascript
+// sdk/documentClient.js
+export class DocumentClient {
+  constructor(baseUrl, apiKey = null) {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+    this.apiKey = apiKey;
+  }
+
+  _headers() {
+    const headers = { Accept: "application/json" };
+    if (this.apiKey) {
+      headers["Authorization"] = `Bearer ${this.apiKey}`;
+    }
+    return headers;
+  }
+
+  async _get(path, params = {}) {
+    const url = new URL(this.baseUrl + path);
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) url.searchParams.append(k, v);
+    });
+
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: this._headers(),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Request failed: ${res.status} ${text}`);
+    }
+    return res.json();
+  }
+
+  getLatestDocument(cdi) {
+    return this._get(`/v1/documents/${encodeURIComponent(cdi)}`);
+  }
+
+  getDocumentVersions(cdi) {
+    return this._get(`/v1/documents/${encodeURIComponent(cdi)}/versions`);
+  }
+
+  getSpecificVersion(cdi, version) {
+    return this._get(
+      `/v1/documents/${encodeURIComponent(cdi)}/versions/${encodeURIComponent(
+        version
+      )}`
+    );
+  }
+
+  resolveCitation(cdi, indexCode, asOfDate = null) {
+    const params = { cdi, index_code: indexCode };
+    if (asOfDate) params.as_of_date = asOfDate;
+    return this._get("/v1/citations/resolve", params);
+  }
+
+  searchDocuments({ q, type, jurisdiction, status }) {
+    return this._get("/v1/search", { q, type, jurisdiction, status });
+  }
+}
+```
+
+**Usage:**
+
+```javascript
+import { DocumentClient } from "./sdk/documentClient.js";
+
+const client = new DocumentClient("https://api.example.com", "YOUR_TOKEN");
+
+async function demo() {
+  const doc = await client.getLatestDocument("US-WYDOT-POL-0042");
+  console.log(doc.title);
+
+  const section = await client.resolveCitation(
+    "US-WYDOT-POL-0042",
+    "§3.2.1(a)"
+  );
+  console.log(section.text);
+}
+
+demo();
+```
+
+---
+
+""""If you’d like, we can next:
+
+- Add **error-handling patterns** and **retry logic** to the SDKs,  
+- Design a **Postman collection** for your API, or  
+- Draft **API documentation text** (OpenAPI/Swagger-style) that matches all of this.""""
