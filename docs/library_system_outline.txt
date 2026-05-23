@@ -1,0 +1,772 @@
+Love this—let’s turn that blueprint into something you could actually build and govern.
+
+---
+
+## 1. Data model (ERD-style description)
+
+I’ll describe the entities and relationships clearly so you can turn this into an actual ERD in your favorite tool.
+
+### Core entities
+
+**1. Document**
+- **Fields:**
+  - **id:** UUID (internal primary key)
+  - **cdi:** string (Canonical Document Identifier, unique)
+  - **title:** string
+  - **type:** enum (`LAW`, `REGULATION`, `POLICY`, `STANDARD`, `DIRECTIVE`, `GUIDANCE`, `AMENDMENT`, `REVISION`)
+  - **issuing_authority_id:** FK → `Authority.id`
+  - **jurisdiction_id:** FK → `Jurisdiction.id`
+  - **status:** enum (`DRAFT`, `ACTIVE`, `RETIRED`, `REPEALED`, `SUPERSEDED`)
+  - **effective_date:** date
+  - **expiration_date:** date, nullable
+  - **created_at:** timestamp
+  - **updated_at:** timestamp
+  - **current_version_id:** FK → `DocumentVersion.id`
+  - **series_id:** string (stable family ID, e.g. `0042`)
+- **Relationships:**
+  - 1 `Document` → many `DocumentVersion`
+  - 1 `Document` → many `Amendment` (as target)
+  - 1 `Document` → many `Tag` (via join table)
+
+---
+
+**2. DocumentVersion**
+- **Fields:**
+  - **id:** UUID
+  - **document_id:** FK → `Document.id`
+  - **version_string:** string (`MAJOR.MINOR.PATCH`, e.g. `3.1.0`)
+  - **major:** int
+  - **minor:** int
+  - **patch:** int
+  - **status:** enum (`DRAFT`, `PUBLISHED`, `ARCHIVED`)
+  - **effective_date:** date
+  - **supersedes_version_id:** FK → `DocumentVersion.id`, nullable
+  - **checksum:** string (e.g. `sha256-...`)
+  - **signature_id:** FK → `Signature.id`, nullable
+  - **storage_uri:** string (object store URI)
+  - **created_at:** timestamp
+  - **published_at:** timestamp, nullable
+- **Relationships:**
+  - 1 `DocumentVersion` → many `Section`
+  - 1 `DocumentVersion` → many `Amendment` (as source)
+  - 1 `DocumentVersion` → many `VersionEvent` (audit)
+
+---
+
+**3. Section**
+- **Fields:**
+  - **id:** UUID
+  - **document_version_id:** FK → `DocumentVersion.id`
+  - **parent_section_id:** FK → `Section.id`, nullable
+  - **index_code:** string (e.g. `§3.2.1(a)(iv)`)
+  - **level:** enum (`PART`, `CHAPTER`, `SECTION`, `SUBSECTION`, `CLAUSE`, `ITEM`)
+  - **heading:** string, nullable
+  - **text:** text
+  - **order:** int (for sibling ordering)
+- **Relationships:**
+  - Tree structure via `parent_section_id`
+  - 1 `Section` → many `AmendmentTarget` (join to `Amendment`)
+
+---
+
+**4. Amendment**
+- **Fields:**
+  - **id:** UUID
+  - **amendment_code:** string (e.g. `AMEND-US-WYDOT-POL-0042-2025-01`)
+  - **source_document_version_id:** FK → `DocumentVersion.id` (the amending version)
+  - **target_document_id:** FK → `Document.id`
+  - **effective_date:** date
+  - **description:** text (human-readable summary)
+  - **created_at:** timestamp
+- **Relationships:**
+  - 1 `Amendment` → many `AmendmentTarget`
+
+---
+
+**5. AmendmentTarget**
+- **Fields:**
+  - **id:** UUID
+  - **amendment_id:** FK → `Amendment.id`
+  - **target_section_id:** FK → `Section.id`, nullable
+  - **target_index_code:** string (for resilience if section IDs change)
+  - **operation:** enum (`ADD`, `MODIFY`, `REPEAL`, `RENUMBER`, `REPLACE`)
+  - **details:** jsonb (machine-readable description of change)
+- **Relationships:**
+  - Many-to-one to `Amendment`
+
+---
+
+**6. Authority**
+- **Fields:**
+  - **id:** UUID
+  - **name:** string
+  - **code:** string (e.g. `WYDOT`)
+  - **type:** enum (`AGENCY`, `MINISTRY`, `DEPARTMENT`, `BOARD`, `COMMITTEE`)
+  - **jurisdiction_id:** FK → `Jurisdiction.id`
+
+---
+
+**7. Jurisdiction**
+- **Fields:**
+  - **id:** UUID
+  - **code:** string (e.g. `US-WY`)
+  - **name:** string
+  - **level:** enum (`INTERNATIONAL`, `FEDERAL`, `STATE`, `LOCAL`, `ORG-INTERNAL`)
+
+---
+
+**8. Tag & DocumentTag**
+- **Tag**
+  - **id:** UUID
+  - **name:** string
+  - **category:** string (e.g. `topic`, `domain`, `risk`)
+- **DocumentTag**
+  - **document_id:** FK → `Document.id`
+  - **tag_id:** FK → `Tag.id`
+
+---
+
+**9. Signature**
+- **Fields:**
+  - **id:** UUID
+  - **algorithm:** string
+  - **public_key_ref:** string
+  - **signature_value:** text
+  - **signed_at:** timestamp
+  - **timestamp_authority_ref:** string, nullable
+
+---
+
+**10. VersionEvent (Audit)**
+- **Fields:**
+  - **id:** UUID
+  - **document_version_id:** FK → `DocumentVersion.id`
+  - **event_type:** enum (`CREATED`, `SUBMITTED_FOR_REVIEW`, `APPROVED`, `PUBLISHED`, `AMENDED`, `RETIRED`)
+  - **actor:** string (user or system)
+  - **timestamp:** timestamp
+  - **details:** jsonb
+
+---
+
+## 2. Complete JSON schema for documents
+
+This schema is for a **published document version** payload (what your API would return).
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/document-version.json",
+  "title": "DocumentVersion",
+  "type": "object",
+  "required": [
+    "cdi",
+    "title",
+    "type",
+    "jurisdiction",
+    "issuing_authority",
+    "status",
+    "version",
+    "effective_date",
+    "metadata",
+    "sections"
+  ],
+  "properties": {
+    "cdi": {
+      "type": "string",
+      "description": "Canonical Document Identifier"
+    },
+    "series_id": {
+      "type": "string",
+      "description": "Stable family identifier for the document series"
+    },
+    "title": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "LAW",
+        "REGULATION",
+        "POLICY",
+        "STANDARD",
+        "DIRECTIVE",
+        "GUIDANCE",
+        "AMENDMENT",
+        "REVISION"
+      ]
+    },
+    "jurisdiction": {
+      "type": "object",
+      "required": ["code", "name"],
+      "properties": {
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "level": {
+          "type": "string",
+          "enum": [
+            "INTERNATIONAL",
+            "FEDERAL",
+            "STATE",
+            "LOCAL",
+            "ORG-INTERNAL"
+          ]
+        }
+      }
+    },
+    "issuing_authority": {
+      "type": "object",
+      "required": ["code", "name"],
+      "properties": {
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "AGENCY",
+            "MINISTRY",
+            "DEPARTMENT",
+            "BOARD",
+            "COMMITTEE"
+          ]
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["DRAFT", "ACTIVE", "RETIRED", "REPEALED", "SUPERSEDED"]
+    },
+    "version": {
+      "type": "object",
+      "required": ["string", "major", "minor", "patch"],
+      "properties": {
+        "string": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "major": { "type": "integer", "minimum": 0 },
+        "minor": { "type": "integer", "minimum": 0 },
+        "patch": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "effective_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "expiration_date": {
+      "type": "string",
+      "format": "date",
+      "nullable": true
+    },
+    "supersedes": {
+      "type": "string",
+      "description": "CDI of the previous version",
+      "nullable": true
+    },
+    "amendments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "code", "effective_date"],
+        "properties": {
+          "id": { "type": "string" },
+          "code": { "type": "string" },
+          "effective_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["index_code", "operation"],
+              "properties": {
+                "index_code": { "type": "string" },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "ADD",
+                    "MODIFY",
+                    "REPEAL",
+                    "RENUMBER",
+                    "REPLACE"
+                  ]
+                },
+                "details": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "checksum": {
+      "type": "string"
+    },
+    "signature": {
+      "type": "object",
+      "nullable": true,
+      "properties": {
+        "algorithm": { "type": "string" },
+        "public_key_ref": { "type": "string" },
+        "signature_value": { "type": "string" },
+        "signed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timestamp_authority_ref": {
+          "type": "string",
+          "nullable": true
+        }
+      }
+    },
+    "document_uri": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional arbitrary metadata",
+      "additionalProperties": true
+    },
+    "sections": {
+      "type": "array",
+      "description": "Top-level sections (tree structure)",
+      "items": {
+        "$ref": "#/$defs/section"
+      }
+    }
+  },
+  "$defs": {
+    "section": {
+      "type": "object",
+      "required": ["index_code", "level", "text"],
+      "properties": {
+        "index_code": { "type": "string" },
+        "level": {
+          "type": "string",
+          "enum": [
+            "PART",
+            "CHAPTER",
+            "SECTION",
+            "SUBSECTION",
+            "CLAUSE",
+            "ITEM"
+          ]
+        },
+        "heading": {
+          "type": "string",
+          "nullable": true
+        },
+        "text": {
+          "type": "string"
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/section" }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## 3. API design
+
+### High-level principles
+
+- **REST-first**, optional **GraphQL** for flexible queries.
+- All resources versioned via headers or URL prefix (e.g. `/v1/...`).
+- Responses use the JSON schema above for document versions.
+
+### Key endpoints
+
+#### Documents
+
+- **GET `/v1/documents`**
+  - **Query params:**
+    - **type:** filter by document type
+    - **jurisdiction:** code
+    - **status:** `ACTIVE`, `RETIRED`, etc.
+    - **tag:** multi-value
+    - **q:** full-text search
+  - **Returns:** paginated list of documents (summary view).
+
+- **POST `/v1/documents`**
+  - **Use:** create a new document series (initial draft).
+  - **Body:** minimal metadata (title, type, jurisdiction, issuing authority).
+  - **Returns:** created `Document` with `series_id`.
+
+- **GET `/v1/documents/{cdi}`**
+  - **Returns:** latest version of the document (full `DocumentVersion` payload).
+
+- **GET `/v1/documents/{cdi}/versions`**
+  - **Returns:** list of versions with metadata (version string, status, dates).
+
+- **GET `/v1/documents/{cdi}/versions/{version}`**
+  - **Returns:** specific version (full payload).
+
+---
+
+#### Versions & lifecycle
+
+- **POST `/v1/documents/{series_id}/versions`**
+  - **Use:** create a new version (draft).
+  - **Body:** draft content + metadata.
+  - **Server logic:** assign semantic version based on requested change type (`MAJOR`, `MINOR`, `PATCH`).
+
+- **POST `/v1/versions/{version_id}/submit`**
+  - Moves version from `DRAFT` → `UNDER_REVIEW`.
+
+- **POST `/v1/versions/{version_id}/approve`**
+  - Moves version to `APPROVED`.
+
+- **POST `/v1/versions/{version_id}/publish`**
+  - Moves version to `PUBLISHED`, sets `Document.current_version_id`, updates `Document.status`.
+
+- **POST `/v1/versions/{version_id}/retire`**
+  - Marks version as `ARCHIVED`, document as `RETIRED` if appropriate.
+
+---
+
+#### Amendments
+
+- **GET `/v1/amendments`**
+  - Filter by `target_document_cdi`, `effective_date`, etc.
+
+- **POST `/v1/amendments`**
+  - **Body:** amendment metadata + targets (index codes, operations).
+  - **Server logic:** link to `source_document_version_id`, validate targets.
+
+- **GET `/v1/amendments/{id}`**
+  - Returns amendment details and resolved target sections.
+
+---
+
+#### Search & citation
+
+- **GET `/v1/search`**
+  - **Query params:**
+    - **q:** full-text query
+    - **jurisdiction, type, tag, status**
+  - **Returns:** mixed results (documents, sections).
+
+- **GET `/v1/citations/resolve`**
+  - **Query params:**
+    - **cdi**
+    - **index_code** (e.g. `§3.2.1(a)(iv)`)
+    - **as_of_date** (to resolve which version was in force)
+  - **Returns:** resolved section text and metadata.
+
+---
+
+## 4. Working prototype in code (Python + FastAPI + SQLAlchemy, minimal)
+
+This is a **thin slice**: create a document, create a version, fetch it.
+
+```python
+# models.py
+from datetime import date, datetime
+from sqlalchemy import (
+    Column, String, Integer, Date, DateTime, Enum, ForeignKey, Text
+)
+from sqlalchemy.orm import declarative_base, relationship
+
+Base = declarative_base()
+
+class DocumentStatus(str):
+    DRAFT = "DRAFT"
+    ACTIVE = "ACTIVE"
+    RETIRED = "RETIRED"
+    REPEALED = "REPEALED"
+    SUPERSEDED = "SUPERSEDED"
+
+class DocumentType(str):
+    POLICY = "POLICY"
+    LAW = "LAW"
+    REGULATION = "REGULATION"
+    STANDARD = "STANDARD"
+    DIRECTIVE = "DIRECTIVE"
+    GUIDANCE = "GUIDANCE"
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    id = Column(String, primary_key=True)
+    cdi = Column(String, unique=True, index=True)
+    series_id = Column(String, index=True)
+    title = Column(String, nullable=False)
+    type = Column(String, nullable=False)
+    jurisdiction_code = Column(String, nullable=False)
+    issuing_authority_code = Column(String, nullable=False)
+    status = Column(String, default=DocumentStatus.DRAFT)
+    effective_date = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    versions = relationship("DocumentVersion", back_populates="document")
+
+class DocumentVersion(Base):
+    __tablename__ = "document_versions"
+
+    id = Column(String, primary_key=True)
+    document_id = Column(String, ForeignKey("documents.id"), nullable=False)
+    version_string = Column(String, nullable=False)
+    major = Column(Integer, nullable=False)
+    minor = Column(Integer, nullable=False)
+    patch = Column(Integer, nullable=False)
+    status = Column(String, default="DRAFT")
+    effective_date = Column(Date, nullable=True)
+    checksum = Column(String, nullable=True)
+    storage_uri = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    document = relationship("Document", back_populates="versions")
+```
+
+```python
+# main.py
+import uuid
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+
+from models import Base, Document, DocumentVersion, DocumentType
+
+DATABASE_URL = "sqlite:///./docs.db"
+
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(bind=engine)
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="Document Versioning Prototype")
+
+class DocumentCreate(BaseModel):
+    title: str
+    type: str
+    jurisdiction_code: str
+    issuing_authority_code: str
+
+class VersionCreate(BaseModel):
+    change_type: str  # "MAJOR" | "MINOR" | "PATCH"
+    content_uri: str
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+@app.post("/v1/documents")
+def create_document(payload: DocumentCreate, db: Session = next(get_db())):
+    series_id = str(uuid.uuid4())[:8]
+    cdi = f"{payload.jurisdiction_code}-{payload.issuing_authority_code}-{payload.type}-{series_id}-v0.1.0"
+    doc = Document(
+        id=str(uuid.uuid4()),
+        cdi=cdi,
+        series_id=series_id,
+        title=payload.title,
+        type=payload.type,
+        jurisdiction_code=payload.jurisdiction_code,
+        issuing_authority_code=payload.issuing_authority_code,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return {"cdi": doc.cdi, "series_id": doc.series_id, "title": doc.title}
+
+@app.post("/v1/documents/{series_id}/versions")
+def create_version(series_id: str, payload: VersionCreate, db: Session = next(get_db())):
+    doc = db.query(Document).filter(Document.series_id == series_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # naive versioning: always 1.0.0 for demo
+    version = DocumentVersion(
+        id=str(uuid.uuid4()),
+        document_id=doc.id,
+        version_string="1.0.0",
+        major=1,
+        minor=0,
+        patch=0,
+        storage_uri=payload.content_uri,
+    )
+    db.add(version)
+    db.commit()
+    db.refresh(version)
+    return {
+        "document_cdi": doc.cdi,
+        "version": version.version_string,
+        "storage_uri": version.storage_uri,
+    }
+
+@app.get("/v1/documents/{cdi}")
+def get_latest_version(cdi: str, db: Session = next(get_db())):
+    doc = db.query(Document).filter(Document.cdi == cdi).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    version = (
+        db.query(DocumentVersion)
+        .filter(DocumentVersion.document_id == doc.id)
+        .order_by(DocumentVersion.created_at.desc())
+        .first()
+    )
+    if not version:
+        raise HTTPException(status_code=404, detail="No versions found")
+    return {
+        "cdi": doc.cdi,
+        "title": doc.title,
+        "version": version.version_string,
+        "storage_uri": version.storage_uri,
+    }
+```
+
+This is intentionally minimal—you’d extend it with sections, amendments, and full JSON payloads.
+
+---
+
+## 5. Governance policy manual (concise but real)
+
+### 5.1 Purpose
+
+**Purpose:** Define how official documents, policies, regulations, and laws are drafted, versioned, approved, published, amended, and retired within the organization, using the versioning and indexing library as the single source of truth.
+
+---
+
+### 5.2 Scope
+
+**Scope:**  
+Applies to:
+- All **binding** and **quasi-binding** documents (laws, regulations, policies, standards, directives, guidance) issued by the organization.
+- All **digital and print** publications derived from the library.
+
+---
+
+### 5.3 Roles and responsibilities
+
+- **Document Owner**
+  - **Accountable** for content accuracy and alignment with organizational objectives.
+  - Initiates drafts, requests amendments, and proposes retirement.
+
+- **Legal/Compliance Reviewer**
+  - Reviews for legal sufficiency, regulatory alignment, and risk.
+  - Approves or rejects drafts and amendments.
+
+- **Records/Knowledge Manager**
+  - Manages metadata, indexing, and archival.
+  - Ensures CDI uniqueness and correct classification.
+
+- **System Administrator**
+  - Maintains technical platform, access control, and audit logs.
+
+- **Approving Authority**
+  - Formally approves documents and major versions.
+  - Authorizes publication and retirement.
+
+---
+
+### 5.4 Document lifecycle rules
+
+**1. Drafting**
+- All new documents start as **DRAFT**.
+- Drafts are assigned a **series_id** and provisional CDI with version `0.x.x`.
+- Drafts must include:
+  - Title, type, jurisdiction, issuing authority.
+  - Document Owner.
+  - Intended effective date (if known).
+
+**2. Review**
+- Drafts must undergo:
+  - **Substantive review** by subject-matter experts.
+  - **Legal/compliance review** for binding documents.
+- Review comments and decisions are recorded as **VersionEvents**.
+
+**3. Approval**
+- A document version may be approved only by the **Approving Authority** designated for its type and jurisdiction.
+- Approval is recorded with:
+  - Actor identity.
+  - Timestamp.
+  - Decision rationale (summary).
+
+**4. Publication**
+- Only **APPROVED** versions may be **PUBLISHED**.
+- Upon publication:
+  - A stable CDI with semantic version (`MAJOR.MINOR.PATCH`) is assigned.
+  - The version is digitally signed and checksummed.
+  - The version becomes the **current authoritative version** unless explicitly delayed by effective date.
+
+**5. Amendment**
+- Substantive changes to a published document must be implemented as:
+  - **MINOR version** for section-level changes that preserve overall structure.
+  - **MAJOR version** for structural rewrites, new frameworks, or repeal-and-replace.
+- Each amendment:
+  - Identifies target sections by index code.
+  - Specifies operation (`ADD`, `MODIFY`, `REPEAL`, `RENUMBER`, `REPLACE`).
+  - Is traceable to an approving decision.
+
+**6. Non-substantive changes**
+- Typos, formatting, and non-substantive clarifications:
+  - May be issued as **PATCH** versions.
+  - Must not alter legal meaning.
+  - Require at least one reviewer sign-off.
+
+**7. Retirement and repeal**
+- A document may be:
+  - **RETIRED** when no longer applicable but historically relevant.
+  - **REPEALED** when explicitly revoked by a higher authority.
+- Retirement/repeal:
+  - Must reference the superseding document or decision.
+  - Must preserve access to all prior versions for audit and legal traceability.
+
+---
+
+### 5.5 Versioning rules
+
+- **MAJOR version increment** when:
+  - Policy or law is fundamentally restructured.
+  - Core obligations or rights are significantly changed.
+  - A prior framework is replaced.
+
+- **MINOR version increment** when:
+  - New sections are added.
+  - Existing sections are substantively modified.
+  - Definitions are updated in a way that affects interpretation.
+
+- **PATCH version increment** when:
+  - Grammar, spelling, formatting, or references are corrected.
+  - Examples or illustrations are updated without changing obligations.
+
+---
+
+### 5.6 Access control and integrity
+
+- Only authenticated users with appropriate roles may:
+  - Create drafts.
+  - Submit for review.
+  - Approve or publish.
+- All actions are logged as **immutable audit events**.
+- Published versions:
+  - Must be stored in **immutable storage**.
+  - Must have verifiable checksums and digital signatures.
+
+---
+
+### 5.7 Citation and use
+
+- Internal and external references must:
+  - Use the **CDI** and, where applicable, the **section index code**.
+  - Optionally include the **version string** when referencing historical states.
+- Systems consuming the library must:
+  - Resolve citations as-of a given date when legal effect over time matters.
+
+---
+
+If you’d like, next we can:
+
+- Turn the ERD into a concrete SQL schema, or  
+- Flesh out the FastAPI prototype with sections, amendments, and search, or  
+- Draft a short “developer integration guide” for teams consuming this library.
